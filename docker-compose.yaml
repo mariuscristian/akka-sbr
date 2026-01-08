@@ -1,0 +1,89 @@
+version: '3'
+
+services:
+  toxiproxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.toxiproxy
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "8474:8474" # API
+    networks:
+      - akka-net
+
+  node-1:
+    build: .
+    environment:
+      - ADVERTISED_HOST=toxiproxy
+      - ADVERTISED_PORT=12551
+      - SEED_NODE_1_HOST=toxiproxy
+      - SEED_NODE_1_PORT=12551
+      - SEED_NODE_2_HOST=toxiproxy
+      - SEED_NODE_2_PORT=12552
+    ports:
+      - "8558:8558" # Management HTTP
+    depends_on:
+      - toxiproxy
+    networks:
+      - akka-net
+
+  node-2:
+    build: .
+    environment:
+      - ADVERTISED_HOST=toxiproxy
+      - ADVERTISED_PORT=12552
+      - SEED_NODE_1_HOST=toxiproxy
+      - SEED_NODE_1_PORT=12551
+      - SEED_NODE_2_HOST=toxiproxy
+      - SEED_NODE_2_PORT=12552
+    depends_on:
+      - toxiproxy
+    networks:
+      - akka-net
+
+  node-3:
+    build: .
+    environment:
+      - ADVERTISED_HOST=toxiproxy
+      - ADVERTISED_PORT=12553
+      - SEED_NODE_1_HOST=toxiproxy
+      - SEED_NODE_1_PORT=12551
+      - SEED_NODE_2_HOST=toxiproxy
+      - SEED_NODE_2_PORT=12552
+    depends_on:
+      - toxiproxy
+    networks:
+      - akka-net
+
+  node-4:
+    build: .
+    environment:
+      - ADVERTISED_HOST=toxiproxy
+      - ADVERTISED_PORT=12554
+      - SEED_NODE_1_HOST=toxiproxy
+      - SEED_NODE_1_PORT=12551
+      - SEED_NODE_2_HOST=toxiproxy
+      - SEED_NODE_2_PORT=12552
+    depends_on:
+      - toxiproxy
+    networks:
+      - akka-net
+
+  dashboard:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./dashboard/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./dashboard/index.html:/usr/share/nginx/html/index.html:ro
+    depends_on:
+      - node-1
+      - node-2
+      - node-3
+      - node-4
+    networks:
+      - akka-net
+
+networks:
+  akka-net:

@@ -1,0 +1,12 @@
+FROM ghcr.io/shopify/toxiproxy:2.5.0 AS source
+
+FROM alpine:3.18
+RUN apk add --no-cache iptables bash curl iproute2
+
+COPY --from=source /toxiproxy /usr/local/bin/toxiproxy
+COPY --from=source /toxiproxy-cli /usr/local/bin/toxiproxy-cli
+
+# Default config if generic image didn't have one, but we use CLI mostly.
+# Entrypoint needed. source image has /entrypoint.sh usually? 
+# Let's just run toxiproxy.
+CMD ["/usr/local/bin/toxiproxy", "-host=0.0.0.0", "-port=8474"]

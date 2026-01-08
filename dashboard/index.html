@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akka SBR Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #1a1b1e;
+            --card-bg: #25262b;
+            --text-primary: #c1c2c5;
+            --text-secondary: #909296;
+            --success: #40c057;
+            --danger: #fa5252;
+            --warning: #fab005;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #fff;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .node-card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border: 1px solid #373a40;
+        }
+
+        .node-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #373a40;
+        }
+
+        .node-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .node-status {
+            font-size: 0.9rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #373a40;
+        }
+
+        .members-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .members-table th {
+            text-align: left;
+            padding: 8px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .members-table td {
+            padding: 8px;
+            border-top: 1px solid #373a40;
+        }
+
+        .status-up {
+            color: var(--success);
+        }
+
+        .status-unreachable {
+            color: var(--danger);
+            font-weight: bold;
+        }
+
+        .status-weaklyup {
+            color: var(--warning);
+        }
+
+        .status-down {
+            color: var(--danger);
+        }
+
+        .status-removed {
+            color: #868e96;
+        }
+
+        .tag-leader {
+            background: rgba(250, 176, 5, 0.2);
+            color: var(--warning);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-left: 5px;
+        }
+
+        .tag-oldest {
+            background: rgba(64, 192, 87, 0.2);
+            color: var(--success);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-left: 5px;
+        }
+
+        .tag-self {
+            background: rgba(34, 139, 230, 0.2);
+            color: #228be6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-left: 5px;
+        }
+
+        .error-msg {
+            color: var(--danger);
+            font-size: 0.9rem;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Akka Cluster SBR Dashboard <span style="font-size: 0.5em; font-weight: normal; color: #909296;">(Last updated:
+            <span id="last-updated">...</span>)</span></h1>
+
+    <div class="grid" id="dashboard-grid">
+        <!-- Cards will be injected here -->
+    </div>
+
+    <script>
+        const nodes = [
+            { id: 'node1', name: 'Node 1', api: '/api/node1/cluster/members' },
+            { id: 'node2', name: 'Node 2', api: '/api/node2/cluster/members' },
+            { id: 'node3', name: 'Node 3', api: '/api/node3/cluster/members' },
+            { id: 'node4', name: 'Node 4', api: '/api/node4/cluster/members' }
+        ];
+
+        async function fetchNodeState(node) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout
+
+            try {
+                const response = await fetch(node.api, {
+                    cache: 'no-store',
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                if (!response.ok) throw new Error('Network response was not ok');
+                return await response.json();
+            } catch (error) {
+                clearTimeout(timeoutId);
+                return { error: true, message: error.message };
+            }
+        }
+
+        // Mapping from fixed port to Friendly Name
+        const portToName = {
+            '12551': 'Node 1',
+            '12552': 'Node 2',
+            '12553': 'Node 3',
+            '12554': 'Node 4'
+        };
+
+        function renderMemberRow(member, leader, oldest, selfNode) {
+            let tags = '';
+            if (member.node === leader) tags += '<span class="tag-leader">LEADER</span>';
+            if (member.node === oldest) tags += '<span class="tag-oldest">OLDEST</span>';
+            if (member.node === selfNode) tags += '<span class="tag-self">SELF</span>';
+
+            let statusClass = 'status-' + member.status.toLowerCase();
+
+            // Extract port for simpler display
+            const portMatch = member.node.match(/:(\d+)$/);
+            const port = portMatch ? portMatch[1] : '';
+            const nodeName = portToName[port] || 'Unknown';
+            const displayName = `${nodeName} (${port})`;
+
+            return `
+                <tr>
+                    <td>${displayName} ${tags}</td>
+                    <td class="${statusClass}">${member.status}</td>
+                </tr>
+            `;
+        }
+
+        function renderUnreachableRow(unreachableMember) {
+            const portMatch = unreachableMember.node.match(/:(\d+)$/);
+            const port = portMatch ? portMatch[1] : '';
+            const nodeName = portToName[port] || 'Unknown';
+            const displayName = `${nodeName} (${port})`;
+
+            return `
+                <tr>
+                    <td>${displayName}</td>
+                    <td class="status-unreachable">UNREACHABLE</td>
+                </tr>
+             `;
+        }
+
+        async function updateDashboard() {
+            try {
+                const container = document.getElementById('dashboard-grid');
+                const states = await Promise.all(nodes.map(n => fetchNodeState(n)));
+
+                let html = '';
+
+                states.forEach((state, index) => {
+                    const nodeConf = nodes[index];
+
+                    if (state.error) {
+                        html += `
+                            <div class="node-card">
+                                <div class="node-header">
+                                    <span class="node-title">${nodeConf.name}</span>
+                                    <span class="node-status" style="color: var(--danger)">OFFLINE</span>
+                                </div>
+                                <div class="error-msg">Could not connect to Management API</div>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    const leader = state.leader;
+                    const oldest = state.oldest;
+                    const selfNode = state.selfNode;
+
+                    // Find self status
+                    const selfMember = state.members.find(m => m.node === selfNode);
+                    const selfStatus = selfMember ? selfMember.status : 'Unknown';
+                    const selfStatusClass = 'status-' + selfStatus.toLowerCase();
+
+                    let rows = '';
+
+                    // Create maps for quick lookup by port
+                    const memberMap = {};
+                    state.members.forEach(m => {
+                        const portMatch = m.node.match(/:(\d+)$/);
+                        if (portMatch) memberMap[portMatch[1]] = m;
+                    });
+
+                    const unreachableMap = {};
+                    if (state.unreachable) {
+                        state.unreachable.forEach(u => {
+                            const portMatch = u.node.match(/:(\d+)$/);
+                            if (portMatch) unreachableMap[portMatch[1]] = u;
+                        });
+                    }
+
+                    // Iterate over all expected ports (12551-12554)
+                    const expectedPorts = ['12551', '12552', '12553', '12554'];
+
+                    expectedPorts.forEach(port => {
+                        const nodeName = portToName[port];
+                        const displayName = `${nodeName} (${port})`;
+
+                        let status = 'Not Member';
+                        let statusClass = 'status-removed';
+                        let tags = '';
+
+                        const member = memberMap[port];
+                        const unreachable = unreachableMap[port];
+
+                        if (member) {
+                            status = member.status;
+                            statusClass = 'status-' + status.toLowerCase();
+                            if (member.node === leader) tags += '<span class="tag-leader">LEADER</span>';
+                            if (member.node === oldest) tags += '<span class="tag-oldest">OLDEST</span>';
+                            if (member.node === selfNode) tags += '<span class="tag-self">SELF</span>';
+                        } else if (unreachable) {
+                            status = 'UNREACHABLE';
+                            statusClass = 'status-unreachable';
+                        }
+
+                        rows += `
+                            <tr>
+                                <td>${displayName} ${tags}</td>
+                                <td class="${statusClass}">${status}</td>
+                            </tr>
+                        `;
+                    });
+
+                    html += `
+                        <div class="node-card">
+                            <div class="node-header">
+                                <span class="node-title">${nodeConf.name}</span>
+                                <span class="node-status ${selfStatusClass}" style="border: 1px solid currentColor;">${selfStatus.toUpperCase()}</span>
+                            </div>
+                            <table class="members-table">
+                                <thead>
+                                    <tr>
+                                        <th>Node</th>
+                                        <th>Status (View)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rows}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+
+                // Update timestamp
+                document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+            } catch (err) {
+                console.error("Dashboard update failed:", err);
+            } finally {
+                // Schedule next update ALWAYS
+                setTimeout(updateDashboard, 1000);
+            }
+        }
+
+        // Initial call
+        updateDashboard();
+    </script>
+</body>
+
+</html>
