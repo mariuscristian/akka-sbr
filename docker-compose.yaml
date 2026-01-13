@@ -17,12 +17,9 @@ services:
     environment:
       - ADVERTISED_HOST=toxiproxy
       - ADVERTISED_PORT=12551
-      - SEED_NODE_1_HOST=toxiproxy
-      - SEED_NODE_1_PORT=12551
-      - SEED_NODE_2_HOST=toxiproxy
-      - SEED_NODE_2_PORT=12552
+      - NODE_ID=1
     ports:
-      - "8558:8558" # Management HTTP
+      - "8551:8558"
     depends_on:
       - toxiproxy
     networks:
@@ -33,10 +30,9 @@ services:
     environment:
       - ADVERTISED_HOST=toxiproxy
       - ADVERTISED_PORT=12552
-      - SEED_NODE_1_HOST=toxiproxy
-      - SEED_NODE_1_PORT=12551
-      - SEED_NODE_2_HOST=toxiproxy
-      - SEED_NODE_2_PORT=12552
+      - NODE_ID=2
+    ports:
+      - "8552:8558"
     depends_on:
       - toxiproxy
     networks:
@@ -47,10 +43,9 @@ services:
     environment:
       - ADVERTISED_HOST=toxiproxy
       - ADVERTISED_PORT=12553
-      - SEED_NODE_1_HOST=toxiproxy
-      - SEED_NODE_1_PORT=12551
-      - SEED_NODE_2_HOST=toxiproxy
-      - SEED_NODE_2_PORT=12552
+      - NODE_ID=3
+    ports:
+      - "8553:8558"
     depends_on:
       - toxiproxy
     networks:
@@ -61,10 +56,9 @@ services:
     environment:
       - ADVERTISED_HOST=toxiproxy
       - ADVERTISED_PORT=12554
-      - SEED_NODE_1_HOST=toxiproxy
-      - SEED_NODE_1_PORT=12551
-      - SEED_NODE_2_HOST=toxiproxy
-      - SEED_NODE_2_PORT=12552
+      - NODE_ID=4
+    ports:
+      - "8554:8558"
     depends_on:
       - toxiproxy
     networks:

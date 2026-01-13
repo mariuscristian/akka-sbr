@@ -7,6 +7,8 @@ import akka.management.javadsl.AkkaManagement;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 
+import akka.management.cluster.bootstrap.ClusterBootstrap;
+
 public class Main {
     public static void main(String[] args) {
         // Load config to potentially override with system properties
@@ -17,9 +19,8 @@ public class Main {
         // Start Akka Management (provides HTTP endpoint)
         AkkaManagement.get(system).start();
 
-        // In this manual setup with seed-nodes, Cluster Bootstrap is not strictly
-        // needed
-        // but often good practice. Here we rely on seed-nodes in application.conf
+        // Start Cluster Bootstrap
+        ClusterBootstrap.get(system).start();
     }
 
     private static Behavior<Void> rootBehavior() {
